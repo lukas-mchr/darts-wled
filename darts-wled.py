@@ -33,6 +33,11 @@ VERSION = '1.6.0'
 DEFAULT_EFFECT_BRIGHTNESS = 175
 DEFAULT_EFFECT_IDLE = 'solid|lightgoldenrodyellow'
 
+DEFAULT_EFFECT_SEGMENT_THROW = 'solid|red1'
+DEFAULT_LEDS_PER_METER = 60
+BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
+DIAMETER_3DEME_WLED = 74.5
+
 WLED_EFFECT_LIST_PATH = '/json/eff'
 EFFECT_PARAMETER_SEPARATOR = "|"
 BOGEY_NUMBERS = [169, 168, 166, 165, 163, 162, 159]
@@ -95,8 +100,8 @@ def on_message_wled(ws, message):
                 #     ppi('server ps: ' + str(m['state']['ps']))
                 #     ppi('server pl: ' + str(m['state']['pl']))
                 #     ppi('server fx: ' + str(m['state']['seg'][0]['fx']))
-                    
-                if 'state' in m and waitingForIdle == True: 
+
+                if 'state' in m and waitingForIdle == True:
 
                     # [({'seg': {'fx': '0', 'col': [[250, 250, 210, 0]]}, 'on': True}, DURATION)]
                     (ide, duration) = IDLE_EFFECT[0]
@@ -137,7 +142,7 @@ def on_close_wled(ws, close_status_code, close_msg):
         connect_wled(ws.url)
     except Exception as e:
         ppe('WS-Close failed: ', e)
-    
+
 def on_error_wled(ws, error):
     ppe('WS-Error ' + str(ws.url) + ' failed: ', error)
 
@@ -145,7 +150,7 @@ def control_wled(effect_list, ptext, bss_requested = True, is_win = False):
     global waitingForIdle
     global waitingForBoardStart
 
-    if is_win == True and BOARD_STOP_AFTER_WIN == 1: 
+    if is_win == True and BOARD_STOP_AFTER_WIN == 1:
         sio.emit('message', 'board-reset')
         ppi('Board reset after win')
         time.sleep(0.15)
@@ -177,7 +182,7 @@ def control_wled(effect_list, ptext, bss_requested = True, is_win = False):
 
     if bss_requested == True:
         waitingForIdle = True
-        
+
         wait = EFFECT_DURATION
         if duration is not None:
             wait = duration
@@ -195,13 +200,13 @@ def broadcast(data):
         try:
             # ppi("Broadcasting to " + str(wled_ep))
             threading.Thread(target=broadcast_intern, args=(wled_ep, data)).start()
-        except:  
+        except:
             continue
 
 def broadcast_intern(endpoint, data):
     try:
         endpoint.send(json.dumps(data))
-    except:  
+    except:
         return
 
 
@@ -209,7 +214,7 @@ def broadcast_intern(endpoint, data):
 def get_state(effect_list):
     if effect_list == ["x"] or effect_list == ["X"]:
         # TODO: add more rnd parameter
-        return {"seg": {"fx": str(random.choice(WLED_EFFECT_ID_LIST))} } 
+        return {"seg": {"fx": str(random.choice(WLED_EFFECT_ID_LIST))} }
     else:
         return random.choice(effect_list)
 
@@ -222,7 +227,7 @@ def parse_effects_argument(effects_argument, custom_duration_possible = True):
         try:
             effect_params = effect.split(EFFECT_PARAMETER_SEPARATOR)
             effect_declaration = effect_params[0].strip().lower()
-            
+
             custom_duration = None
 
             # preset/ playlist
@@ -232,7 +237,7 @@ def parse_effects_argument(effects_argument, custom_duration_possible = True):
                     custom_duration = int(effect_params[2])
                 parsed_list.append((state, custom_duration))
                 continue
-            
+
             # effect by ID
             elif effect_declaration.isdigit() == True:
                 effect_id = effect_declaration
@@ -240,8 +245,8 @@ def parse_effects_argument(effects_argument, custom_duration_possible = True):
             # effect by name
             else:
                 effect_id = str(WLED_EFFECTS.index(effect_declaration))
-            
-   
+
+
 
             # everying else .. can have different positions
 
@@ -249,7 +254,7 @@ def parse_effects_argument(effects_argument, custom_duration_possible = True):
             # ie: "61-120" "29|blueviolet|s255|i255|red1|green1"
 
             seg = {"fx": effect_id}
- 
+
             colours = list()
             for ep in effect_params[1:]:
 
@@ -289,7 +294,7 @@ def parse_effects_argument(effects_argument, custom_duration_possible = True):
             ppe("Failed to parse event-configuration: ", e)
             continue
 
-    return parsed_list   
+    return parsed_list
 
 def parse_score_area_effects_argument(score_area_effects_arguments):
     if score_area_effects_arguments == None:
@@ -305,8 +310,8 @@ def parse_score_area_effects_argument(score_area_effects_arguments):
 
 def process_lobby(msg):
     if msg['action'] == 'player-joined' and PLAYER_JOINED_EFFECTS is not None:
-        control_wled(PLAYER_JOINED_EFFECTS, 'Player joined!')    
-    
+        control_wled(PLAYER_JOINED_EFFECTS, 'Player joined!')
+
     elif msg['action'] == 'player-left' and PLAYER_LEFT_EFFECTS is not None:
         control_wled(PLAYER_LEFT_EFFECTS, 'Player left!')
 
@@ -322,7 +327,7 @@ def process_variant_x01(msg):
             for SAE in SCORE_AREA_EFFECTS:
                 if SCORE_AREA_EFFECTS[SAE] is not None:
                     ((area_from, area_to), AREA_EFFECTS) = SCORE_AREA_EFFECTS[SAE]
-                    
+
                     if ival >= area_from and ival <= area_to:
                         control_wled(AREA_EFFECTS, 'Darts-thrown: ' + val)
                         area_found = True
@@ -427,11 +432,6 @@ def connect_data_feeder():
             pass
 
 
-
-
-
-
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("-CON", "--connection", default="127.0.0.1:8079", required=False, help="Connection to data feeder")
@@ -461,6 +461,12 @@ if __name__ == "__main__":
     ap.add_argument("-TOE", "--takeout_effect", default=None, required=False, nargs='*', help="WLED effect-definition when Takeout will be performed")
     ap.add_argument("-CE", "--calibration_effect", default=None, required=False, nargs='*', help="WLED effect-definition when Calibration will be performed")
     ap.add_argument("-OFF", "--wled_off", type=int, choices=range(0, 2), default=False, required=False, help="Turns WLED Off after game")
+
+    ap.add_argument("-D", "--diameter_wled_stripe", type=float, default=DIAMETER_3DEME_WLED, required=False, help="Diameter of the mounted WLED Stripe")
+    ap.add_argument("-LPM", "--leds_per_meter", type=int, choices=range(1, 150), default=DEFAULT_LEDS_PER_METER, required=False, help="Amount of LEDs per meter of the mounted WLED Stripe")
+    ap.add_argument("-SOL", "--start_offset_leds", type=int, default=0, required=False, help="Offset LEDs from line between 20 and 1 to beginning of the mounted WLED Stripe")
+    ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle")
+
     args = vars(ap.parse_args())
 
 
@@ -503,12 +509,69 @@ if __name__ == "__main__":
     HIGH_FINISH_ON = args['high_finish_on']
     WLED_OFF = args['wled_off']
     
+
+    DIAMETER_WLED = args['diameter_wled_stripe']
+    LEDS_PER_METER = args['leds_per_meter']
+    START_OFFSET_LEDS = args['start_offset_leds']
+    END_OFFSET_LEDS = args['end_offset_leds']
+
+    ppi("Durchmesser: " + str(DIAMETER_WLED))
+    ppi("LEDs/Meter: " + str(LEDS_PER_METER))
+    ppi("START_OFFSET_LEDS: " + str(START_OFFSET_LEDS))
+    ppi("END_OFFSET_LEDS: " + str(END_OFFSET_LEDS))
+
+    CIRCUMFERENCE = DIAMETER_WLED * 3.14159265359
+    SECTION_LENGTH = CIRCUMFERENCE / 20
+    GAP_LEDS = 100 / LEDS_PER_METER
+    LEDS_PER_SECTION = SECTION_LENGTH / GAP_LEDS
+    AMOUNT_LEDS_CIRCLE = int(LEDS_PER_SECTION * 20 - END_OFFSET_LEDS)
+    INNER_LEDS = list(range(0, AMOUNT_LEDS_CIRCLE))
+    OUTER_LEDS = list(range(AMOUNT_LEDS_CIRCLE, AMOUNT_LEDS_CIRCLE * 2))
+
+    INNER_LEDS_PER_SECTION = {}
+    OUTER_LEDS_PER_SECTION = {}
+
+    for i, seg_number in enumerate(BOARD_NUMBERS_ORDER):
+        start_led = i * LEDS_PER_SECTION
+        end_led = start_led + LEDS_PER_SECTION
+
+        start_led_offset = (start_led - START_OFFSET_LEDS) % AMOUNT_LEDS_CIRCLE
+        end_led_offset = (end_led - START_OFFSET_LEDS) % AMOUNT_LEDS_CIRCLE
+
+        if start_led < START_OFFSET_LEDS:
+            start_led_offset += END_OFFSET_LEDS
+
+        if end_led < START_OFFSET_LEDS:
+            end_led_offset += END_OFFSET_LEDS
+
+        if start_led_offset < end_led_offset:
+            leds = list(range(int(start_led_offset), min(int(end_led_offset), AMOUNT_LEDS_CIRCLE)))
+        else:
+            leds = list(range(int(start_led_offset), AMOUNT_LEDS_CIRCLE)) + list(range(0, int(end_led_offset)))
+
+        INNER_LEDS_PER_SECTION[seg_number] = leds
+
+    for i, seg_number in enumerate(BOARD_NUMBERS_ORDER):
+        OUTER_LEDS_PER_SECTION[seg_number] = [2 * AMOUNT_LEDS_CIRCLE - led - 1 for led in
+                                              INNER_LEDS_PER_SECTION[seg_number]]
+
+
+    ppi("Circumference: " + str(CIRCUMFERENCE))
+    ppi("Section Length: " + str(SECTION_LENGTH))
+    ppi("Gap Leds: " + str(GAP_LEDS))
+    ppi("Leds Per Section: " + str(LEDS_PER_SECTION))
+    ppi("Amount Leds Circle: " + str(AMOUNT_LEDS_CIRCLE))
+    ppi("Inner Leds: " + str(INNER_LEDS))
+    ppi("Outer Leds: " + str(OUTER_LEDS))
+    ppi("INNER_LEDS_PER_SECTION: " + str(INNER_LEDS_PER_SECTION))
+    ppi("OUTER_LEDS_PER_SECTION: " + str(OUTER_LEDS_PER_SECTION))
+
     WLED_EFFECTS = list()
-    try:     
+    try:
         effect_list_url = 'http://' + WLED_ENDPOINT_PRIMARY + WLED_EFFECT_LIST_PATH
         WLED_EFFECTS = requests.get(effect_list_url, headers={'Accept': 'application/json'})
-        WLED_EFFECTS = [we.lower().split('@', 1)[0] for we in WLED_EFFECTS.json()]  
-        WLED_EFFECT_ID_LIST = list(range(0, len(WLED_EFFECTS) + 1)) 
+        WLED_EFFECTS = [we.lower().split('@', 1)[0] for we in WLED_EFFECTS.json()]
+        WLED_EFFECT_ID_LIST = list(range(0, len(WLED_EFFECTS) + 1))
         ppi("Your primary WLED-Endpoint (" + effect_list_url + ") offers " + str(len(WLED_EFFECTS)) + " effects")
     except Exception as e:
         ppe("Failed on receiving effect-list from WLED-Endpoint", e)
@@ -516,6 +579,8 @@ if __name__ == "__main__":
     BOARD_STOP_EFFECT = parse_effects_argument(args['board_stop_effect'])
     TAKEOUT_EFFECT = parse_effects_argument(args['takeout_effect'])
     CALIBRATION_EFFECT = parse_effects_argument(args['calibration_effect'])
+
+
     IDLE_EFFECT = parse_effects_argument(args['idle_effect'])
     GAME_WON_EFFECTS = parse_effects_argument(args['game_won_effects'])
     MATCH_WON_EFFECTS = parse_effects_argument(args['match_won_effects'])
