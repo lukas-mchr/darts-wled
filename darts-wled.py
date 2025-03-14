@@ -219,7 +219,7 @@ def get_state(effect_list):
     else:
         return random.choice(effect_list)
 
-def parse_segment_effects_argument(segment_effects_arguments, segment):
+def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="true"):
     leds = INNER_LEDS_PER_SECTION[segment] + OUTER_LEDS_PER_SECTION[segment]
     leds.sort()
     ppi(leds)
@@ -263,7 +263,7 @@ def parse_segment_effects_argument(segment_effects_arguments, segment):
     ppi(segment_effects_arguments)
     ppi("hex_segments: " + str(hex_segments))
 
-    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": "true", "i": str(hex_segments) } ] }, None))
+    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": freeze, "i": str(hex_segments) } ] }, None))
 
     return parsed_list
 
@@ -387,8 +387,6 @@ def process_variant_x01(msg):
     elif msg['event'] == 'dart1-thrown' or msg['event'] == 'dart2-thrown' or msg['event'] == 'dart3-thrown':
         control_wled(IDLE_EFFECT, 'Board started', bss_requested=False)
         seg = str(msg['game']['segment'])
-        val = str(msg['game']['dartValue'])
-        ppi("Seg: " + seg + " Val: " + val)
         segment_effect = parse_segment_effects_argument(args["score_1_effects"], int(seg))
         control_wled(segment_effect, 'Seg: ' + seg, bss_requested=False)
 
