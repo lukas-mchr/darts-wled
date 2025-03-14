@@ -236,7 +236,7 @@ def parse_segment_effects_argument(segment_effects_arguments, segment):
             current_range = [leds[i]]
     led_ranges.append(current_range)
 
-    colours = list()
+    color = list()
     for effect in segment_effects_arguments:
         try:
             effect_params = effect.split(EFFECT_PARAMETER_SEPARATOR)
@@ -246,10 +246,8 @@ def parse_segment_effects_argument(segment_effects_arguments, segment):
                 param_key = ep[0].strip().lower()
                 param_value = ep[1:].strip().lower()
 
-                color = WLED_COLORS[param_key + param_value]
-                color = list(color)
-                color.append(0)
-                colours.append(color)
+                colors = WLED_COLORS[param_key + param_value]
+                color = list(colors)
 
         except Exception as e:
             ppe("Failed to parse event-configuration: ", e)
@@ -259,13 +257,13 @@ def parse_segment_effects_argument(segment_effects_arguments, segment):
     for led_range in led_ranges:
         hex_segments.append(led_range[0])
         hex_segments.append(led_range[-1])
-        hex_segments.append("FF0000")
+        hex_segments.append(color)
 
     ppi("segment_effects_arguments: ")
     ppi(segment_effects_arguments)
     ppi("hex_segments: " + str(hex_segments))
 
-    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": "true", "i": hex_segments } ] }, None))
+    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": "true", "i": str(hex_segments) } ] }, None))
 
     return parsed_list
 
@@ -666,13 +664,13 @@ if __name__ == "__main__":
         SCORE_AREA_EFFECTS[a] = parsed_score_area
         # ppi(parsed_score_area)
 
-    try:
-        connect_data_feeder()
-        for e in WLED_ENDPOINTS:
-            connect_wled(e)
-
-    except Exception as e:
-        ppe("Connect failed: ", e)
+    # try:
+    #     connect_data_feeder()
+    #     for e in WLED_ENDPOINTS:
+    #         connect_wled(e)
+    #
+    # except Exception as e:
+    #     ppe("Connect failed: ", e)
 
 
 time.sleep(5)
