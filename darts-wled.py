@@ -35,6 +35,7 @@ DEFAULT_EFFECT_IDLE = 'solid|lightgoldenrodyellow'
 
 DEFAULT_EFFECT_SEGMENT_THROW = "solid|yellow1"
 DEFAULT_LEDS_PER_METER = 60
+# TODO: based on direction of the LED Stripe, it must be reversed
 # BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
 BOARD_NUMBERS_ORDER = [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
 DIAMETER_3DEME_WLED = 74.5
@@ -387,7 +388,7 @@ def process_variant_x01(msg):
     elif msg['event'] == 'dart1-thrown' or msg['event'] == 'dart2-thrown' or msg['event'] == 'dart3-thrown':
         control_wled(IDLE_EFFECT, 'Board started', bss_requested=False)
         seg = str(msg['game']['segment'])
-        segment_effect = parse_segment_effects_argument(args["score_1_effects"], int(seg))
+        segment_effect = parse_segment_effects_argument(SEGMENT_HIT_EFFECTS, int(seg))
         control_wled(segment_effect, 'Seg: ' + seg, bss_requested=False)
 
     elif msg['event'] == 'darts-pulled':
@@ -522,6 +523,7 @@ if __name__ == "__main__":
     ap.add_argument("-LPM", "--leds_per_meter", type=int, choices=range(1, 150), default=DEFAULT_LEDS_PER_METER, required=False, help="Amount of LEDs per meter of the mounted WLED Stripe")
     ap.add_argument("-SOL", "--start_offset_leds", type=int, default=0, required=False, help="Offset LEDs from line between 20 and 1 to beginning of the mounted WLED Stripe")
     ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle")
+    ap.add_argument("-SEGE", "--segment_hit_effect", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition when segment gets hit")
 
     args = vars(ap.parse_args())
 
@@ -570,6 +572,7 @@ if __name__ == "__main__":
     LEDS_PER_METER = args['leds_per_meter']
     START_OFFSET_LEDS = args['start_offset_leds']
     END_OFFSET_LEDS = args['end_offset_leds']
+    SEGMENT_HIT_EFFECTS = args['segment_hit_effect']
 
     ppi("Durchmesser: " + str(DIAMETER_WLED))
     ppi("LEDs/Meter: " + str(LEDS_PER_METER))
