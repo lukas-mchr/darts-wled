@@ -33,9 +33,10 @@ VERSION = '1.6.0'
 DEFAULT_EFFECT_BRIGHTNESS = 175
 DEFAULT_EFFECT_IDLE = 'solid|lightgoldenrodyellow'
 
-DEFAULT_EFFECT_SEGMENT_THROW = 'solid|red1'
+DEFAULT_EFFECT_SEGMENT_THROW = "solid|yellow1"
 DEFAULT_LEDS_PER_METER = 60
-BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
+# BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
+BOARD_NUMBERS_ORDER = [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
 DIAMETER_3DEME_WLED = 74.5
 
 WLED_EFFECT_LIST_PATH = '/json/eff'
@@ -94,7 +95,7 @@ def on_message_wled(ws, message):
             if lastMessage != m:
                 lastMessage = m
 
-                # ppi(json.dumps(m, indent = 4, sort_keys = True))
+                ppi(json.dumps(m, indent = 4, sort_keys = True))
 
                 # if 'state' in m :
                 #     ppi('server ps: ' + str(m['state']['ps']))
@@ -218,6 +219,56 @@ def get_state(effect_list):
     else:
         return random.choice(effect_list)
 
+def parse_segment_effects_argument(segment_effects_arguments, segment):
+    leds = INNER_LEDS_PER_SECTION[segment] + OUTER_LEDS_PER_SECTION[segment]
+    leds.sort()
+    ppi(leds)
+    led_ranges = []
+    current_range = [leds[0]]
+
+    parsed_list = list()
+
+    for i in range(1, len(leds)):
+        if leds[i] == leds[i - 1] + 1:
+            current_range.append(leds[i])
+        else:
+            led_ranges.append(current_range)
+            current_range = [leds[i]]
+    led_ranges.append(current_range)
+
+    colours = list()
+    for effect in segment_effects_arguments:
+        try:
+            effect_params = effect.split(EFFECT_PARAMETER_SEPARATOR)
+
+            for ep in effect_params[1:]:
+
+                param_key = ep[0].strip().lower()
+                param_value = ep[1:].strip().lower()
+
+                color = WLED_COLORS[param_key + param_value]
+                color = list(color)
+                color.append(0)
+                colours.append(color)
+
+        except Exception as e:
+            ppe("Failed to parse event-configuration: ", e)
+            continue
+
+    hex_segments = []
+    for led_range in led_ranges:
+        hex_segments.append(led_range[0])
+        hex_segments.append(led_range[-1])
+        hex_segments.append("FF0000")
+
+    ppi("segment_effects_arguments: ")
+    ppi(segment_effects_arguments)
+    ppi("hex_segments: " + str(hex_segments))
+
+    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": "true", "i": hex_segments } ] }, None))
+
+    return parsed_list
+
 def parse_effects_argument(effects_argument, custom_duration_possible = True):
     if effects_argument == None or effects_argument == ["x"] or effects_argument == ["X"]:
         return effects_argument
@@ -335,8 +386,17 @@ def process_variant_x01(msg):
             if area_found == False:
                 ppi('Darts-thrown: ' + val + ' - NOT configured!')
 
+    elif msg['event'] == 'dart1-thrown' or msg['event'] == 'dart2-thrown' or msg['event'] == 'dart3-thrown':
+        control_wled(IDLE_EFFECT, 'Board started', bss_requested=False)
+        seg = str(msg['game']['segment'])
+        val = str(msg['game']['dartValue'])
+        ppi("Seg: " + seg + " Val: " + val)
+        segment_effect = parse_segment_effects_argument(args["score_1_effects"], int(seg))
+        control_wled(segment_effect, 'Seg: ' + seg, bss_requested=False)
+
     elif msg['event'] == 'darts-pulled':
         if EFFECT_DURATION == 0:
+            ppi(IDLE_EFFECT)
             control_wled(IDLE_EFFECT, 'Darts-pulled', bss_requested=False)
 
     elif msg['event'] == 'busted' and BUSTED_EFFECTS is not None:
@@ -527,6 +587,7 @@ if __name__ == "__main__":
     AMOUNT_LEDS_CIRCLE = int(LEDS_PER_SECTION * 20 - END_OFFSET_LEDS)
     INNER_LEDS = list(range(0, AMOUNT_LEDS_CIRCLE))
     OUTER_LEDS = list(range(AMOUNT_LEDS_CIRCLE, AMOUNT_LEDS_CIRCLE * 2))
+    ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT = 2
 
     INNER_LEDS_PER_SECTION = {}
     OUTER_LEDS_PER_SECTION = {}
@@ -545,9 +606,14 @@ if __name__ == "__main__":
             end_led_offset += END_OFFSET_LEDS
 
         if start_led_offset < end_led_offset:
-            leds = list(range(int(start_led_offset), min(int(end_led_offset), AMOUNT_LEDS_CIRCLE)))
+            if (start_led_offset - ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT) < 0:
+                leds = list(range(int(start_led_offset), int(end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), AMOUNT_LEDS_CIRCLE))
+            elif end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT > AMOUNT_LEDS_CIRCLE:
+                leds = list(range(int(start_led_offset - ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), AMOUNT_LEDS_CIRCLE)) + list(range(0, int(end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT)))
+            else:
+                leds = list(range(int(start_led_offset - ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), min(int(end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), AMOUNT_LEDS_CIRCLE)))
         else:
-            leds = list(range(int(start_led_offset), AMOUNT_LEDS_CIRCLE)) + list(range(0, int(end_led_offset)))
+            leds = list(range(int(start_led_offset - ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), AMOUNT_LEDS_CIRCLE)) + list(range(0, int(end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT)))
 
         INNER_LEDS_PER_SECTION[seg_number] = leds
 
@@ -580,7 +646,6 @@ if __name__ == "__main__":
     TAKEOUT_EFFECT = parse_effects_argument(args['takeout_effect'])
     CALIBRATION_EFFECT = parse_effects_argument(args['calibration_effect'])
 
-
     IDLE_EFFECT = parse_effects_argument(args['idle_effect'])
     GAME_WON_EFFECTS = parse_effects_argument(args['game_won_effects'])
     MATCH_WON_EFFECTS = parse_effects_argument(args['match_won_effects'])
@@ -594,15 +659,15 @@ if __name__ == "__main__":
         parsed_score = parse_effects_argument(args["score_" + str(v) + "_effects"])
         SCORE_EFFECTS[str(v)] = parsed_score
         # ppi(parsed_score)
-        ppi(SCORE_EFFECTS[str(v)])
+        # ppi(SCORE_EFFECTS[str(v)])
     SCORE_AREA_EFFECTS = dict()
     for a in range(1, 13):
         parsed_score_area = parse_score_area_effects_argument(args["score_area_" + str(a) + "_effects"])
         SCORE_AREA_EFFECTS[a] = parsed_score_area
         # ppi(parsed_score_area)
 
-    try:            
-        connect_data_feeder() 
+    try:
+        connect_data_feeder()
         for e in WLED_ENDPOINTS:
             connect_wled(e)
 
