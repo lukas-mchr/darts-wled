@@ -35,9 +35,6 @@ DEFAULT_EFFECT_IDLE = 'solid|lightgoldenrodyellow'
 
 DEFAULT_EFFECT_SEGMENT_THROW = "solid|yellow1"
 DEFAULT_LEDS_PER_METER = 60
-# TODO: based on direction of the LED Stripe, it must be reversed
-# BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
-BOARD_NUMBERS_ORDER = [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
 DIAMETER_3DEME_WLED = 74.5
 
 WLED_EFFECT_LIST_PATH = '/json/eff'
@@ -221,6 +218,9 @@ def get_state(effect_list):
         return random.choice(effect_list)
 
 def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="true"):
+    if segment_effects_arguments == None or segment_effects_arguments == ["x"] or segment_effects_arguments == ["X"]:
+        return segment_effects_arguments
+
     leds = INNER_LEDS_PER_SECTION[segment] + OUTER_LEDS_PER_SECTION[segment]
     leds.sort()
     ppi(leds)
@@ -525,6 +525,19 @@ if __name__ == "__main__":
     ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle")
     ap.add_argument("-SEGE", "--segment_hit_effect", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition when segment gets hit")
 
+    ap.add_argument("-WMC", "--wled_mount_clockwise", type=int, choices=range(0, 2), default=True, required=False,
+                    help="Direction of the mounted WLED Stripe: clockwise = 1, counter clockwise = 0")
+    ap.add_argument("-WSF", "--wled_start_facing", type=int, choices=range(0, 2), default=True, required=False,
+                    help="Facing of the start from the mounted WLED Stripe faces: inside = 1, outside = 0")
+
+
+    for s in range(1, 21):
+        seg = str(s)
+        ap.add_argument("-SEG" + seg, "--segment_" + seg + "_effects", default=None, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: " + seg)
+    ap.add_argument("-SEG25", "--segment_25_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 25/BULL")
+    ap.add_argument("-SEG50", "--segment_50_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 50/BULLSEYE")
+
+
     args = vars(ap.parse_args())
 
 
@@ -573,6 +586,14 @@ if __name__ == "__main__":
     START_OFFSET_LEDS = args['start_offset_leds']
     END_OFFSET_LEDS = args['end_offset_leds']
     SEGMENT_HIT_EFFECTS = args['segment_hit_effect']
+
+    WLED_MOUNT_CLOCKWISE = args['wled_mount_clockwise']
+    WLED_START_FACING = args['wled_start_facing']
+
+    if WLED_MOUNT_CLOCKWISE == 1:
+        BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
+    else:
+        BOARD_NUMBERS_ORDER = [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
 
     ppi("Durchmesser: " + str(DIAMETER_WLED))
     ppi("LEDs/Meter: " + str(LEDS_PER_METER))
@@ -664,6 +685,13 @@ if __name__ == "__main__":
         parsed_score_area = parse_score_area_effects_argument(args["score_area_" + str(a) + "_effects"])
         SCORE_AREA_EFFECTS[a] = parsed_score_area
         # ppi(parsed_score_area)
+
+    SEGMENT_HIT_EFFECTS = dict()
+    for a in range(1, 21):
+        parsed_segment = parse_segment_effects_argument(args["segment_" + str(a) + "_effects"], a)
+        SEGMENT_HIT_EFFECTS[a] = parsed_segment
+        # ppi(parsed_segment)
+    ppi(SEGMENT_HIT_EFFECTS)
 
     # try:
     #     connect_data_feeder()
