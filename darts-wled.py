@@ -533,7 +533,7 @@ if __name__ == "__main__":
 
     for s in range(1, 21):
         seg = str(s)
-        ap.add_argument("-SEG" + seg, "--segment_" + seg + "_effects", default=None, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: " + seg)
+        ap.add_argument("-SEG" + seg, "--segment_" + seg + "_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: " + seg)
     ap.add_argument("-SEG25", "--segment_25_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 25/BULL")
     ap.add_argument("-SEG50", "--segment_50_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 50/BULLSEYE")
 
