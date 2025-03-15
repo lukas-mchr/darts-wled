@@ -237,6 +237,7 @@ def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="t
             current_range = [leds[i]]
     led_ranges.append(current_range)
 
+
     color = list()
     for effect in segment_effects_arguments:
         try:
@@ -523,13 +524,18 @@ if __name__ == "__main__":
     ap.add_argument("-LPM", "--leds_per_meter", type=int, choices=range(1, 150), default=DEFAULT_LEDS_PER_METER, required=False, help="Amount of LEDs per meter of the mounted WLED Stripe")
     ap.add_argument("-SOL", "--start_offset_leds", type=int, default=0, required=False, help="Offset LEDs from line between 20 and 1 to beginning of the mounted WLED Stripe")
     ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle")
-    ap.add_argument("-SEGE", "--segment_hit_effect", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition when segment gets hit")
+    ap.add_argument("-ALNS", "--additional_leds_neighbour_segment", type=int, default=0, required=False, help="If a segment is hit, also x LEDs from the neighbour segments will be lighten up ")
 
     ap.add_argument("-WMC", "--wled_mount_clockwise", type=int, choices=range(0, 2), default=True, required=False,
                     help="Direction of the mounted WLED Stripe: clockwise = 1, counter clockwise = 0")
     ap.add_argument("-WSF", "--wled_start_facing", type=int, choices=range(0, 2), default=True, required=False,
                     help="Facing of the start from the mounted WLED Stripe faces: inside = 1, outside = 0")
-
+    ap.add_argument("-WRS", "--wled_ring_segments", default=None, required=False, nargs='*',
+                    help="Segment in WLED that contain the LEDS in the ring. E.G. All Leds in one Segment = X, Split in outer and inner ring = X-Y")
+    ap.add_argument("-WRS", "--wled_cirlces", type=int, choices=range(0, 3), default=0, required=False,
+                    help="Amount of Cirlces, your WLED Stripe forms: E.G. 3DeMe-WLED-Ring: 2, WLED around surrond 1 to max 2")
+    ap.add_argument("-WSCD", "--wled_second_circle_direction", type=int, choices=range(0, 2), default=True, required=False,
+                    help="If 2 Circles, after the first circle: LEDs continue in same direction: 1, LEDs continue in opposite direction: 0")
 
     for s in range(1, 21):
         seg = str(s)
@@ -589,6 +595,9 @@ if __name__ == "__main__":
 
     WLED_MOUNT_CLOCKWISE = args['wled_mount_clockwise']
     WLED_START_FACING = args['wled_start_facing']
+    WLED_RING_SEGMENTS = args['wled_ring_segments']
+    WLED_CIRLCES = args['wled_cirlces']
+    WLED_SECOND_CIRCLE_DIRECTION = args['wled_second_circle_direction']
 
     if WLED_MOUNT_CLOCKWISE == 1:
         BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
