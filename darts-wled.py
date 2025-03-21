@@ -93,7 +93,7 @@ def on_message_wled(ws, message):
             if lastMessage != m:
                 lastMessage = m
 
-                ppi(json.dumps(m, indent = 4, sort_keys = True))
+                # ppi(json.dumps(m, indent = 4, sort_keys = True))
 
                 # if 'state' in m :
                 #     ppi('server ps: ' + str(m['state']['ps']))
@@ -221,13 +221,38 @@ def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="t
     if segment_effects_arguments == None or segment_effects_arguments == ["x"] or segment_effects_arguments == ["X"]:
         return segment_effects_arguments
 
-    leds = INNER_LEDS_PER_SECTION[segment] + OUTER_LEDS_PER_SECTION[segment]
+    leds = list()
+    if segment in [25, 50]:
+        for seg_number in INNER_LEDS_PER_SECTION:
+            leds.extend(INNER_LEDS_PER_SECTION[seg_number])
+
+        for seg_number in OUTER_LEDS_PER_SECTION:
+            leds.extend(OUTER_LEDS_PER_SECTION[seg_number])
+    else:
+        leds = INNER_LEDS_PER_SECTION[segment] if WLED_START_FACING == 1 else OUTER_LEDS_PER_SECTION[segment]
+        leds += (OUTER_LEDS_PER_SECTION[segment] if WLED_START_FACING == 1 else INNER_LEDS_PER_SECTION[segment]) or []
+
     leds.sort()
     ppi(leds)
+
+    color = list()
+    for effect in segment_effects_arguments:
+        try:
+            effect_params = effect.split(EFFECT_PARAMETER_SEPARATOR)
+
+            for ep in effect_params[1:]:
+                param_key = ep[0].strip().lower()
+                param_value = ep[1:].strip().lower()
+
+                colors = WLED_COLORS[param_key + param_value]
+                color = list(colors)
+
+        except Exception as e:
+            ppe("Failed to parse event-configuration for segments: ", e)
+            continue
+
     led_ranges = []
     current_range = [leds[0]]
-
-    parsed_list = list()
 
     for i in range(1, len(leds)):
         if leds[i] == leds[i - 1] + 1:
@@ -237,23 +262,7 @@ def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="t
             current_range = [leds[i]]
     led_ranges.append(current_range)
 
-
-    color = list()
-    for effect in segment_effects_arguments:
-        try:
-            effect_params = effect.split(EFFECT_PARAMETER_SEPARATOR)
-
-            for ep in effect_params[1:]:
-
-                param_key = ep[0].strip().lower()
-                param_value = ep[1:].strip().lower()
-
-                colors = WLED_COLORS[param_key + param_value]
-                color = list(colors)
-
-        except Exception as e:
-            ppe("Failed to parse event-configuration: ", e)
-            continue
+    ppi(led_ranges)
 
     hex_segments = []
     for led_range in led_ranges:
@@ -261,12 +270,23 @@ def parse_segment_effects_argument(segment_effects_arguments, segment, freeze="t
         hex_segments.append(led_range[-1])
         hex_segments.append(color)
 
-    ppi("segment_effects_arguments: ")
-    ppi(segment_effects_arguments)
+    ppi("segment_effects_arguments: " + str(segment_effects_arguments))
     ppi("hex_segments: " + str(hex_segments))
 
-    parsed_list.append(({"seg": [ { "id": 0, "bri": 255, "frz": freeze, "i": str(hex_segments) } ] }, None))
+    data = {"seg": []}
+    filler_segments = [{"on": "true"} for _ in range(int(WLED_RING_SEGMENTS[0]))]
+    data["seg"] = filler_segments
 
+    if len(WLED_RING_SEGMENTS) == 1:
+        data["seg"].append( {"id": WLED_RING_SEGMENTS[0], "bri": 255, "frz": freeze, "i": str(hex_segments) } )
+    elif len(WLED_RING_SEGMENTS) == 2:
+            data["seg"].append( { "id": WLED_RING_SEGMENTS[0], "bri": 255, "frz": freeze, "i": str(hex_segments) } )
+            data["seg"].append( { "id": WLED_RING_SEGMENTS[1], "bri": 255, "frz": freeze, "i": str(hex_segments) } )
+
+
+    parsed_list = list()
+    parsed_list.append((data, None))
+    ppi(parsed_list)
     return parsed_list
 
 def parse_effects_argument(effects_argument, custom_duration_possible = True):
@@ -389,8 +409,7 @@ def process_variant_x01(msg):
     elif msg['event'] == 'dart1-thrown' or msg['event'] == 'dart2-thrown' or msg['event'] == 'dart3-thrown':
         control_wled(IDLE_EFFECT, 'Board started', bss_requested=False)
         seg = str(msg['game']['segment'])
-        segment_effect = parse_segment_effects_argument(SEGMENT_HIT_EFFECTS, int(seg))
-        control_wled(segment_effect, 'Seg: ' + seg, bss_requested=False)
+        control_wled(SEGMENT_HIT_EFFECTS[seg], 'Seg: ' + seg, bss_requested=False)
 
     elif msg['event'] == 'darts-pulled':
         if EFFECT_DURATION == 0:
@@ -523,25 +542,20 @@ if __name__ == "__main__":
     ap.add_argument("-D", "--diameter_wled_stripe", type=float, default=DIAMETER_3DEME_WLED, required=False, help="Diameter of the mounted WLED Stripe")
     ap.add_argument("-LPM", "--leds_per_meter", type=int, choices=range(1, 150), default=DEFAULT_LEDS_PER_METER, required=False, help="Amount of LEDs per meter of the mounted WLED Stripe")
     ap.add_argument("-SOL", "--start_offset_leds", type=int, default=0, required=False, help="Offset LEDs from line between 20 and 1 to beginning of the mounted WLED Stripe")
-    ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle")
+    ap.add_argument("-EOL", "--end_offset_leds", type=int, default=0, required=False, help="Number of missing LEDS at the end of the mounted WLED Stripe to the start, if the stripe is not a full circle, only needed when WLED forms 2 circles.")
     ap.add_argument("-ALNS", "--additional_leds_neighbour_segment", type=int, default=0, required=False, help="If a segment is hit, also x LEDs from the neighbour segments will be lighten up ")
 
-    ap.add_argument("-WMC", "--wled_mount_clockwise", type=int, choices=range(0, 2), default=True, required=False,
-                    help="Direction of the mounted WLED Stripe: clockwise = 1, counter clockwise = 0")
-    ap.add_argument("-WSF", "--wled_start_facing", type=int, choices=range(0, 2), default=True, required=False,
-                    help="Facing of the start from the mounted WLED Stripe faces: inside = 1, outside = 0")
-    ap.add_argument("-WRS", "--wled_ring_segments", default=None, required=False, nargs='*',
-                    help="Segment in WLED that contain the LEDS in the ring. E.G. All Leds in one Segment = X, Split in outer and inner ring = X-Y")
-    ap.add_argument("-WRS", "--wled_cirlces", type=int, choices=range(0, 3), default=0, required=False,
-                    help="Amount of Cirlces, your WLED Stripe forms: E.G. 3DeMe-WLED-Ring: 2, WLED around surrond 1 to max 2")
-    ap.add_argument("-WSCD", "--wled_second_circle_direction", type=int, choices=range(0, 2), default=True, required=False,
-                    help="If 2 Circles, after the first circle: LEDs continue in same direction: 1, LEDs continue in opposite direction: 0")
+    ap.add_argument("-WMC", "--wled_mount_clockwise", type=int, choices=range(0, 2), default=True, required=False, help="Direction of the mounted WLED Stripe: clockwise = 1, counter clockwise = 0")
+    ap.add_argument("-WSF", "--wled_start_facing", type=int, choices=range(0, 2), default=1, required=False, help="Facing of the start from the mounted WLED Stripe faces: inside = 1, outside = 0")
+    ap.add_argument("-WRS", "--wled_ring_segments", default=0, required=False, nargs='*', help="Segment IDs in WLED that contain the LEDS in the ring. E.G. All Leds in one Segment, ID = X, Split in outer and inner ring, IDs = X-Y")
+    ap.add_argument("-WC", "--wled_cirlces", type=int, choices=range(0, 3), default=0, required=False, help="Amount of Cirlces, your WLED Stripe forms: E.G. 3DeMe-WLED-Ring: 2, WLED around surrond: 1 to max 2")
+    ap.add_argument("-WSCD", "--wled_second_circle_direction", type=int, choices=range(0, 2), default=1, required=False, help="If 2 Circles, after the first circle: LEDs continue in same direction: 1, LEDs continue in opposite direction: 0")
 
     for s in range(1, 21):
         seg = str(s)
-        ap.add_argument("-SEG" + seg, "--segment_" + seg + "_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: " + seg)
-    ap.add_argument("-SEG25", "--segment_25_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 25/BULL")
-    ap.add_argument("-SEG50", "--segment_50_effects", default=DEFAULT_EFFECT_SEGMENT_THROW, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 50/BULLSEYE")
+        ap.add_argument("-SEG" + seg, "--segment_" + seg + "_effects", default=None, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: " + seg)
+    ap.add_argument("-SEG25", "--segment_25_effects", default=None, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 25/BULL")
+    ap.add_argument("-SEG50", "--segment_50_effects", default=None, required=False, nargs='*', help="WLED effect-definition if the darts land in the segment: 50/BULLSEYE")
 
 
     args = vars(ap.parse_args())
@@ -591,18 +605,13 @@ if __name__ == "__main__":
     LEDS_PER_METER = args['leds_per_meter']
     START_OFFSET_LEDS = args['start_offset_leds']
     END_OFFSET_LEDS = args['end_offset_leds']
-    SEGMENT_HIT_EFFECTS = args['segment_hit_effect']
 
     WLED_MOUNT_CLOCKWISE = args['wled_mount_clockwise']
     WLED_START_FACING = args['wled_start_facing']
-    WLED_RING_SEGMENTS = args['wled_ring_segments']
-    WLED_CIRLCES = args['wled_cirlces']
-    WLED_SECOND_CIRCLE_DIRECTION = args['wled_second_circle_direction']
+    WLED_RING_SEGMENTS = [int(x) for x in args['wled_ring_segments'][0].split('-')]
 
-    if WLED_MOUNT_CLOCKWISE == 1:
-        BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20]
-    else:
-        BOARD_NUMBERS_ORDER = [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
+    WLED_CIRLCES = int(args['wled_cirlces'])
+    WLED_SECOND_CIRCLE_DIRECTION = args['wled_second_circle_direction']
 
     ppi("Durchmesser: " + str(DIAMETER_WLED))
     ppi("LEDs/Meter: " + str(LEDS_PER_METER))
@@ -613,14 +622,21 @@ if __name__ == "__main__":
     SECTION_LENGTH = CIRCUMFERENCE / 20
     GAP_LEDS = 100 / LEDS_PER_METER
     LEDS_PER_SECTION = SECTION_LENGTH / GAP_LEDS
+    AMOUNT_LEDS_CIRCLE_WITHOUT_OFFSET = int(LEDS_PER_SECTION * 20)
     AMOUNT_LEDS_CIRCLE = int(LEDS_PER_SECTION * 20 - END_OFFSET_LEDS)
-    INNER_LEDS = list(range(0, AMOUNT_LEDS_CIRCLE))
-    OUTER_LEDS = list(range(AMOUNT_LEDS_CIRCLE, AMOUNT_LEDS_CIRCLE * 2))
-    ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT = 2
+    ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT = args['additional_leds_neighbour_segment']
 
     INNER_LEDS_PER_SECTION = {}
     OUTER_LEDS_PER_SECTION = {}
 
+    if WLED_CIRLCES == 1 or WLED_SECOND_CIRCLE_DIRECTION == 1:
+        END_OFFSET_LEDS = 0
+        AMOUNT_LEDS_CIRCLE = AMOUNT_LEDS_CIRCLE_WITHOUT_OFFSET
+
+    BOARD_NUMBERS_ORDER = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20] \
+        if WLED_MOUNT_CLOCKWISE == 1 else [20, 5, 12, 9, 14, 11, 8, 16, 7, 19, 3, 17, 2, 15, 10, 6, 13, 4, 18, 1]
+
+    ##WLED_START_FACING == 1
     for i, seg_number in enumerate(BOARD_NUMBERS_ORDER):
         start_led = i * LEDS_PER_SECTION
         end_led = start_led + LEDS_PER_SECTION
@@ -644,11 +660,29 @@ if __name__ == "__main__":
         else:
             leds = list(range(int(start_led_offset - ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT), AMOUNT_LEDS_CIRCLE)) + list(range(0, int(end_led_offset + ADDITIONAL_LEDS_NEIGHBOUR_SEGMENT)))
 
-        INNER_LEDS_PER_SECTION[seg_number] = leds
+        if WLED_START_FACING == 1:
+            INNER_LEDS_PER_SECTION[seg_number] = leds
+        elif WLED_START_FACING == 0:
+            OUTER_LEDS_PER_SECTION[seg_number] = leds
 
-    for i, seg_number in enumerate(BOARD_NUMBERS_ORDER):
-        OUTER_LEDS_PER_SECTION[seg_number] = [2 * AMOUNT_LEDS_CIRCLE - led - 1 for led in
-                                              INNER_LEDS_PER_SECTION[seg_number]]
+    if WLED_CIRLCES > 1:
+        ppi("WLED_SECOND_CIRCLE_DIRECTION: " + str(WLED_SECOND_CIRCLE_DIRECTION))
+
+        for i, seg_number in enumerate(BOARD_NUMBERS_ORDER):
+            if WLED_START_FACING == 1:
+                if WLED_SECOND_CIRCLE_DIRECTION == 0:
+                    OUTER_LEDS_PER_SECTION[seg_number] = [2 * AMOUNT_LEDS_CIRCLE_WITHOUT_OFFSET - led - 1
+                                                          for led in INNER_LEDS_PER_SECTION[seg_number]]
+                else:
+                    OUTER_LEDS_PER_SECTION[seg_number] = [led + AMOUNT_LEDS_CIRCLE
+                                                          for led in INNER_LEDS_PER_SECTION[seg_number]]
+            elif WLED_START_FACING == 0:
+                if WLED_SECOND_CIRCLE_DIRECTION == 0:
+                    INNER_LEDS_PER_SECTION[seg_number] = [2 * AMOUNT_LEDS_CIRCLE_WITHOUT_OFFSET - led - 1
+                                                          for led in OUTER_LEDS_PER_SECTION[seg_number]]
+                else:
+                    INNER_LEDS_PER_SECTION[seg_number] = [led + AMOUNT_LEDS_CIRCLE
+                                                          for led in OUTER_LEDS_PER_SECTION[seg_number]]
 
 
     ppi("Circumference: " + str(CIRCUMFERENCE))
@@ -656,8 +690,7 @@ if __name__ == "__main__":
     ppi("Gap Leds: " + str(GAP_LEDS))
     ppi("Leds Per Section: " + str(LEDS_PER_SECTION))
     ppi("Amount Leds Circle: " + str(AMOUNT_LEDS_CIRCLE))
-    ppi("Inner Leds: " + str(INNER_LEDS))
-    ppi("Outer Leds: " + str(OUTER_LEDS))
+    ppi("Amount Leds Circle without offset: " + str(AMOUNT_LEDS_CIRCLE_WITHOUT_OFFSET))
     ppi("INNER_LEDS_PER_SECTION: " + str(INNER_LEDS_PER_SECTION))
     ppi("OUTER_LEDS_PER_SECTION: " + str(OUTER_LEDS_PER_SECTION))
 
@@ -700,7 +733,8 @@ if __name__ == "__main__":
         parsed_segment = parse_segment_effects_argument(args["segment_" + str(a) + "_effects"], a)
         SEGMENT_HIT_EFFECTS[a] = parsed_segment
         # ppi(parsed_segment)
-    ppi(SEGMENT_HIT_EFFECTS)
+    SEGMENT_HIT_EFFECTS[25] = parse_segment_effects_argument(args["segment_25_effects"], 25)
+    SEGMENT_HIT_EFFECTS[50] = parse_segment_effects_argument(args["segment_50_effects"], 50)
 
     # try:
     #     connect_data_feeder()
